@@ -24,6 +24,7 @@ from datetime import timezone, timedelta
 import pandas as pd
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
 import networkx as nx
@@ -818,7 +819,7 @@ def render_graph_explorer(G, risk_df: pd.DataFrame):
     </div>
     """
     st.markdown(legend_html, unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=620, scrolling=False)
+    components.html(html_content, height=620, scrolling=False)
 
     st.caption(
         f"Showing {simple_G.number_of_nodes()} nodes | "
@@ -909,8 +910,7 @@ def render_geo_map(events_df: pd.DataFrame, risk_df: pd.DataFrame):
         )
         geo_df["entity_risk"] = geo_df["entity_risk"].fillna("LOW")
 
-    fig_map = px.scatter_mapbox(
-        geo_df,
+    map_kwargs = dict(
         lat="lat",
         lon="lon",
         color="type",
@@ -924,9 +924,12 @@ def render_geo_map(events_df: pd.DataFrame, risk_df: pd.DataFrame):
         },
         zoom=7,
         center={"lat": 30.9, "lon": 76.9},
-        mapbox_style="open-street-map",
         template="plotly_dark",
     )
+    if hasattr(px, "scatter_mapbox"):
+        fig_map = px.scatter_mapbox(geo_df, mapbox_style="open-street-map", **map_kwargs)
+    else:
+        fig_map = px.scatter_map(geo_df, map_style="open-street-map", **map_kwargs)
     fig_map.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),

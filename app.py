@@ -290,6 +290,24 @@ def haversine_km(lat1, lon1, lat2, lon2) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
+def safe_int(v, default: int = 0) -> int:
+    try:
+        if v is None or pd.isna(v):
+            return default
+        return int(float(v))
+    except Exception:
+        return default
+
+
+def safe_float(v, default: float = 0.0) -> float:
+    try:
+        if v is None or pd.isna(v):
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
@@ -466,13 +484,13 @@ def render_overview(risk_df: pd.DataFrame, events_df: pd.DataFrame):
                 f'<div style="font-weight:600;color:#f1f5f9;">{row.get("name","") or row["entity_id"]}</div>'
                 f'<div style="font-size:0.78rem;color:#64748b;">{row["entity_id"]} · '
                 f'Community #{row.get("community_id","?")} · '
-                f'PageRank {float(row.get("pagerank",0)):.4f}</div>',
+                f'PageRank {safe_float(row.get("pagerank",0)):.4f}</div>',
                 unsafe_allow_html=True,
             )
         with col_b:
             st.markdown(tier_badge(row["risk_tier"]), unsafe_allow_html=True)
             st.markdown(
-                f'<div style="margin-top:4px;">{score_bar(float(row["risk_score"]))}</div>',
+                f'<div style="margin-top:4px;">{score_bar(safe_float(row.get("risk_score", 0)))}</div>',
                 unsafe_allow_html=True,
             )
         with col_c:
@@ -538,9 +556,9 @@ def render_entity_profile(risk_df: pd.DataFrame, events_df: pd.DataFrame):
             <div style="font-size:0.82rem;color:#94a3b8;">
                 <div style="margin:4px 0;"><b>Entity ID:</b> {selected_id}</div>
                 <div style="margin:4px 0;"><b>Community:</b> #{row.get('community_id','?')}</div>
-                <div style="margin:4px 0;"><b>PageRank:</b> {float(row.get('pagerank',0)):.5f}</div>
-                <div style="margin:4px 0;"><b>Degree (in/out):</b> {int(row.get('degree_in',0))}/{int(row.get('degree_out',0))}</div>
-                <div style="margin:4px 0;"><b>Risk Score:</b> {float(row['risk_score']):.3f}</div>
+                <div style="margin:4px 0;"><b>PageRank:</b> {safe_float(row.get('pagerank',0)):.5f}</div>
+                <div style="margin:4px 0;"><b>Degree (in/out):</b> {safe_int(row.get('degree_in',0))}/{safe_int(row.get('degree_out',0))}</div>
+                <div style="margin:4px 0;"><b>Risk Score:</b> {safe_float(row.get('risk_score',0)):.3f}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -548,11 +566,11 @@ def render_entity_profile(risk_df: pd.DataFrame, events_df: pd.DataFrame):
     with col_scores:
         st.markdown("**Source-Level Scores**")
         score_data = {
-            "CDR": float(row.get("cdr_score", 0)),
-            "IPDR": float(row.get("ipdr_score", 0)),
-            "Transactions": float(row.get("tx_score", 0)),
-            "Social": float(row.get("social_score", 0)),
-            "Graph": float(row.get("graph_score", 0)),
+            "CDR": safe_float(row.get("cdr_score", 0)),
+            "IPDR": safe_float(row.get("ipdr_score", 0)),
+            "Transactions": safe_float(row.get("tx_score", 0)),
+            "Social": safe_float(row.get("social_score", 0)),
+            "Graph": safe_float(row.get("graph_score", 0)),
         }
         colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e"]
         fig_bar = go.Figure(go.Bar(
@@ -651,11 +669,20 @@ def render_entity_profile(risk_df: pd.DataFrame, events_df: pd.DataFrame):
     display_cols = ["timestamp_utc", "source", "event_type"]
     tbl = entity_events[display_cols].tail(50).sort_values("timestamp_utc", ascending=False)
     tbl["timestamp_utc"] = tbl["timestamp_utc"].dt.strftime("%Y-%m-%d %H:%M UTC")
-    st.dataframe(
-        tbl.style.applymap(
+
+    styler = tbl.style
+    if hasattr(styler, "map"):
+        styler = styler.map(
             lambda v: f"color: {SOURCE_COLORS.get(v, '#94a3b8')}" if v in SOURCE_COLORS else "",
             subset=["source"],
-        ),
+        )
+    elif hasattr(styler, "applymap"):
+        styler = styler.applymap(
+            lambda v: f"color: {SOURCE_COLORS.get(v, '#94a3b8')}" if v in SOURCE_COLORS else "",
+            subset=["source"],
+        )
+    st.dataframe(
+        styler,
         use_container_width=True,
         height=300,
     )
@@ -751,9 +778,9 @@ def render_graph_explorer(G, risk_df: pd.DataFrame):
 
     for node in simple_G.nodes:
         ndata = G.nodes.get(node, {})
-        risk  = float(risk_lookup.get(node, 0))
+        risk  = safe_float(risk_lookup.get(node, 0))
         tier  = tier_lookup.get(node, "LOW")
-        comm  = int(comm_lookup.get(node, 0)) if not isinstance(comm_lookup.get(node, 0), float) else 0
+        comm  = safe_int(comm_lookup.get(node, 0))
 
         if color_by == "Risk Tier":
             color = TIER_COLORS.get(tier, "#64748b")

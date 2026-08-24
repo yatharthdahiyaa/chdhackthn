@@ -1,32 +1,13 @@
-# Core data stack (numpy and pandas are typically pre-installed)
-pandas>=2.1
-pyarrow>=14.0          # parquet I/O
-
-# Graph
-networkx>=3.2
-
-# Machine learning / anomaly detection
-scikit-learn>=1.4
-
-# NLP
-spacy>=3.7
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-
-# Fuzzy matching
-rapidfuzz>=3.6
-
-# Community detection
-python-louvain>=0.16   # community package
-
-# Geospatial distance
-geopy>=2.4
-
-# Dashboard
-streamlit>=1.35
-plotly>=5.20
-pyvis>=0.3.2           # interactive network graph in Streamlit
-
-# Utilities
-tqdm>=4.66
-python-dateutil>=2.9
-faker>=24.0            # realistic fake names/phones
+pandas>=2.0.0
+pyarrow>=14.0.0
+networkx>=3.0
+scikit-learn>=1.3.0
+rapidfuzz>=3.0.0
+python-louvain>=0.16
+geopy>=2.4.0
+streamlit>=1.35.0
+plotly>=5.18.0
+pyvis>=0.3.2
+tqdm>=4.66.0
+python-dateutil>=2.8.2
+faker>=24.0.0

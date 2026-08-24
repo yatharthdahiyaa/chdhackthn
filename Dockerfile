@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy small English model
-RUN python -m spacy download en_core_web_sm || true
-
 # Copy project files
 COPY . .
 

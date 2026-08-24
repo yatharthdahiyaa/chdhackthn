@@ -35,7 +35,10 @@ import networkx as nx
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import MinMaxScaler
 
-import community as community_louvain
+try:
+    import community as community_louvain
+except Exception:
+    community_louvain = None
 
 from config import (
     EVENTS_FILE, ENTITIES_FILE, GRAPH_FILE, RISK_FILE,
@@ -367,27 +370,36 @@ def analyze_social(events_df: pd.DataFrame) -> pd.DataFrame:
 
     social["timestamp_utc"] = pd.to_datetime(social["timestamp_utc"], utc=True)
 
-    # spaCy NER
-    try:
-        import spacy
-        nlp = spacy.load(SPACY_MODEL)
-        spacy_ok = True
-    except Exception as e:
-        log.warning(f"spaCy unavailable ({e}) -- skipping NER")
-        spacy_ok = False
-
+    # NER extraction (spaCy if available, fast regex fallback)
     ner_results: dict = {}
-    if spacy_ok and "text" in social.columns:
-        eid_texts = social.groupby("entity_id")["text"].apply(list)
-        # Batch process with spaCy pipe for speed
-        eid_list  = list(eid_texts.index)
-        text_list = [" ".join(str(t) for t in texts[:30]) for texts in eid_texts]
-        for eid, doc in zip(eid_list, nlp.pipe(text_list, batch_size=10)):
-            ner_results[eid] = [
-                {"text": ent.text, "label": ent.label_}
-                for ent in doc.ents
-                if ent.label_ in ("PERSON", "ORG", "GPE", "LOC")
-            ]
+    if "text" in social.columns:
+        spacy_ok = False
+        try:
+            import spacy
+            nlp = spacy.load(SPACY_MODEL)
+            spacy_ok = True
+        except Exception:
+            pass
+
+        if spacy_ok:
+            eid_texts = social.groupby("entity_id")["text"].apply(list)
+            eid_list  = list(eid_texts.index)
+            text_list = [" ".join(str(t) for t in texts[:30]) for texts in eid_texts]
+            for eid, doc in zip(eid_list, nlp.pipe(text_list, batch_size=10)):
+                ner_results[eid] = [
+                    {"text": ent.text, "label": ent.label_}
+                    for ent in doc.ents
+                    if ent.label_ in ("PERSON", "ORG", "GPE", "LOC")
+                ]
+        else:
+            import re
+            for eid, group in social.groupby("entity_id"):
+                ents = []
+                for txt in group["text"].dropna():
+                    matches = re.findall(r'\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b', str(txt))
+                    for m in matches[:5]:
+                        ents.append({"text": m, "label": "ENTITY"})
+                ner_results[eid] = ents[:10]
 
     feats = social.groupby("entity_id").agg(
         post_count     = ("event_id", "count"),
@@ -443,7 +455,21 @@ def analyze_graph(G: nx.MultiDiGraph) -> pd.DataFrame:
             else:
                 UG.add_edge(u, v, weight=1)
 
-    communities = community_louvain.best_partition(UG, random_state=42)
+    communities = {}
+    if community_louvain is not None:
+        try:
+            communities = community_louvain.best_partition(UG, random_state=42)
+        except Exception:
+            communities = {}
+
+    if not communities:
+        try:
+            comms = list(nx.community.louvain_communities(UG, seed=42))
+            for cid, c_nodes in enumerate(comms):
+                for n in c_nodes:
+                    communities[n] = cid
+        except Exception:
+            communities = {n: 0 for n in UG.nodes}
 
     SG = nx.DiGraph()
     for u, v in G.edges():
